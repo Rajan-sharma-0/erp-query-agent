@@ -8,17 +8,14 @@ from faker import Faker
 from datetime import datetime, timedelta
 import random
 
-# Load environment variables from .env file
 load_dotenv()
 
-# Connect to MongoDB
 client = MongoClient(os.getenv("MONGODB_URI"))
 db = client[os.getenv("DATABASE_NAME", "erp_db")]
 
 fake = Faker()
 
 def clear_collections():
-    """Drop all existing data so we start fresh each time"""
     db.students.drop()
     db.teachers.drop()
     db.classes.drop()
@@ -26,7 +23,6 @@ def clear_collections():
     db.assignments.drop()
 
 def seed_teachers():
-    """Create 10 fake teachers"""
     subjects = ["Mathematics", "Science", "English", "History", "Geography",
                 "Physics", "Chemistry", "Biology", "Computer Science", "Art"]
     
@@ -40,10 +36,9 @@ def seed_teachers():
         })
     
     result = db.teachers.insert_many(teachers)
-    return result.inserted_ids  # Return IDs so we can link them to classes
+    return result.inserted_ids
 
 def seed_classes(teacher_ids):
-    """Create classes like Class 6-A, Class 6-B, Class 7-A, etc."""
     class_definitions = [
         {"name": "Class 6", "section": "A"},
         {"name": "Class 6", "section": "B"},
@@ -62,14 +57,13 @@ def seed_classes(teacher_ids):
         classes.append({
             "name": cls["name"],
             "section": cls["section"],
-            "teacher_id": teacher_ids[i % len(teacher_ids)]  # Assign a teacher
+            "teacher_id": teacher_ids[i % len(teacher_ids)]
         })
     
     result = db.classes.insert_many(classes)
     return result.inserted_ids
 
 def seed_students(class_ids):
-    """Create 200 students spread across classes"""
     students = []
     for i in range(200):
         students.append({
@@ -85,18 +79,12 @@ def seed_students(class_ids):
     return result.inserted_ids
 
 def seed_attendance(student_ids, class_ids):
-    """
-    Create attendance records for the past 30 days.
-    Each student gets a record for each day (present or absent).
-    About 85% attendance rate (realistic).
-    """
     attendance_records = []
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     
-    for days_ago in range(30):  # Last 30 days
+    for days_ago in range(30):
         date = today - timedelta(days=days_ago)
         
-        # Skip weekends (Saturday=5, Sunday=6)
         if date.weekday() >= 5:
             continue
         
@@ -109,16 +97,11 @@ def seed_attendance(student_ids, class_ids):
                 "status": status
             })
     
-    # Insert in batches of 1000 for speed
     batch_size = 1000
     for i in range(0, len(attendance_records), batch_size):
         db.attendance.insert_many(attendance_records[i:i+batch_size])
 
 def seed_assignments(class_ids, student_ids):
-    """
-    Create 50 assignments.
-    Each assignment has some submissions from students.
-    """
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     assignment_titles = [
         "Math Homework Chapter 5", "Science Lab Report", "English Essay",
@@ -130,11 +113,9 @@ def seed_assignments(class_ids, student_ids):
     
     assignments = []
     for i in range(50):
-        # Random due date: between 7 days ago and 14 days from now
         due_offset = random.randint(-7, 14)
         created_offset = random.randint(due_offset - 14, due_offset - 1)
         
-        # Pick random students who submitted
         submitting_students = random.sample(
             list(student_ids), 
             k=random.randint(0, min(20, len(student_ids)))
@@ -158,10 +139,6 @@ def seed_assignments(class_ids, student_ids):
     result = db.assignments.insert_many(assignments)
 
 def create_indexes():
-    """
-    Create database indexes for faster queries.
-    Think of indexes like a book's index — helps find things quickly.
-    """
     db.students.create_index("class_id")
     db.students.create_index("section")
     db.attendance.create_index("student_id")

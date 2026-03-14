@@ -1,36 +1,16 @@
-"""
-query.py (routes)
------------------
-Defines our API endpoints.
-An endpoint is like a "door" — it receives requests and sends responses.
-
-WHY FastAPI? It's fast, modern, auto-generates API docs,
-and has built-in validation with Pydantic.
-"""
-
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import QueryRequest, QueryResponse
 from app.services.query_agent import run_query
 
-# Router groups related endpoints together
 router = APIRouter(prefix="/api", tags=["Query Agent"])
 
 @router.post("/query", response_model=QueryResponse)
 async def query_endpoint(request: QueryRequest):
-    """
-    Main query endpoint.
-    
-    POST /api/query
-    Body: {"question": "show absent students today", "show_query": true}
-    """
-    
     if not request.question or len(request.question.strip()) < 3:
         raise HTTPException(status_code=400, detail="Question too short")
     
-    # Run the full pipeline
     result = run_query(request.question.strip())
     
-    # Build response
     return QueryResponse(
         question=result["question"],
         status=result["status"],
@@ -42,12 +22,10 @@ async def query_endpoint(request: QueryRequest):
 
 @router.get("/health")
 async def health_check():
-    """Simple health check — tells us if the server is running"""
     return {"status": "healthy", "message": "ERP Query Agent is running!"}
 
 @router.get("/examples")
 async def get_examples():
-    """Returns example questions users can ask"""
     return {
         "examples": [
             "List all students in Class 6",

@@ -1,11 +1,3 @@
-"""
-mongo_service.py
-----------------
-Handles ALL communication with MongoDB.
-Other files just call functions here — they don't touch MongoDB directly.
-This is called the "Service Layer" pattern.
-"""
-
 import os
 from pymongo import MongoClient
 from dotenv import load_dotenv
@@ -13,13 +5,10 @@ from datetime import datetime
 
 load_dotenv()
 
-# Create ONE connection and reuse it (efficient)
-# MongoClient is thread-safe, so one instance is fine
 _client = None
 _db = None
 
 def get_db():
-    """Get database connection. Creates it if it doesn't exist yet."""
     global _client, _db
     if _client is None:
         _client = MongoClient(os.getenv("MONGODB_URI"))
@@ -27,40 +16,16 @@ def get_db():
     return _db
 
 def execute_query(collection_name: str, pipeline: list) -> list:
-    """
-    Execute a MongoDB aggregation pipeline.
-    
-    Why aggregation pipeline?
-    - Simple find() can only filter documents
-    - Aggregation can JOIN collections, GROUP, COUNT, SORT, etc.
-    - It handles ALL 15 of our query types
-    
-    Args:
-        collection_name: which collection to query (e.g., "students")
-        pipeline: list of aggregation stages
-    
-    Returns:
-        List of result documents
-    """
     db = get_db()
     
     if collection_name not in db.list_collection_names():
         return {"error": f"Collection '{collection_name}' does not exist"}
     
     collection = db[collection_name]
-    
-    # Execute and convert cursor to list
-    # limit(200) prevents accidentally returning 100k records
     results = list(collection.aggregate(pipeline))
-    
-    # Convert ObjectId and datetime to strings (JSON can't serialize them)
     return serialize_results(results)
 
 def serialize_results(results: list) -> list:
-    """
-    MongoDB returns ObjectId and datetime objects.
-    JSON can't handle these types, so we convert them to strings.
-    """
     from bson import ObjectId
     
     serialized = []
@@ -69,7 +34,6 @@ def serialize_results(results: list) -> list:
     return serialized
 
 def serialize_doc(doc):
-    """Recursively convert a document's non-JSON-serializable types."""
     from bson import ObjectId
     
     if isinstance(doc, dict):
@@ -84,12 +48,6 @@ def serialize_doc(doc):
         return doc
 
 def get_schema_info() -> str:
-    """
-    Returns a description of our database schema.
-    We pass this to the AI so it knows what collections/fields exist.
-    
-    WHY? Without this, the AI would guess field names and get them wrong.
-    """
     return """
 DATABASE: erp_db
 Collections and their fields:

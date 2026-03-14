@@ -1,20 +1,8 @@
-"""
-intent_detector.py
-------------------
-Detects SIMPLE query intents and returns the MongoDB pipeline directly,
-WITHOUT calling the AI at all.
-
-WHY? gemma3:1b is too small to reliably generate MongoDB JSON.
-     For all 15 assignment queries, we use pre-built pipelines.
-     AI (Ollama) is only called for truly unknown/custom queries.
-"""
-
 import re
 from datetime import datetime, timedelta
 
 
 def get_date_range(period: str):
-    """Returns (start, end) datetime tuple for a given period."""
     now   = datetime.now()
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -32,24 +20,8 @@ def get_date_range(period: str):
 
 
 def detect_intent(question: str):
-    """
-    Matches the question against known patterns.
-    Returns a pre-built pipeline dict, or None if no pattern matches.
-
-    Return format:
-    {
-        "collection": "teachers",
-        "pipeline":   [...],
-        "explanation": "one line description"
-    }
-    """
     q = question.lower().strip()
 
-    # ────────────────────────────────────────────────────
-    # LEVEL 1 — Basic Queries
-    # ────────────────────────────────────────────────────
-
-    # "list all teachers" / "show teachers" / "all teachers in system"
     if re.search(r'\bteachers?\b', q) and not re.search(r'class|teach\b', q.replace("teachers","").replace("teacher","")):
         return {
             "collection": "teachers",
@@ -60,8 +32,6 @@ def detect_intent(question: str):
             "explanation": "Returns all teachers — no filter applied"
         }
 
-    # "list all students" / "show all students" / "students list"
-    # Exclude queries with filters like class, section, absent, percentage
     if (re.search(r'\bstudents?\b', q)
             and not re.search(r'class\s*\d|section|absent|attendance|submit|percent|top\s*\d|not\s+submit', q)):
         return {
@@ -73,7 +43,6 @@ def detect_intent(question: str):
             "explanation": "Returns all students — no filter applied"
         }
 
-    # "show all assignments created today" / "assignments added today"
     if re.search(r'\bassignment', q) and re.search(r'\btoday\b', q) and re.search(r'creat|new|add', q):
         start, end = get_date_range("today")
         return {
@@ -86,7 +55,6 @@ def detect_intent(question: str):
             "explanation": "Returns assignments created today"
         }
 
-    # "show attendance of a student for today" / "attendance today"
     if re.search(r'\battendance\b', q) and re.search(r'\btoday\b', q) and not re.search(r'percent|%|absent', q):
         start, end = get_date_range("today")
         return {
@@ -101,11 +69,7 @@ def detect_intent(question: str):
             "explanation": "Returns all attendance records for today"
         }
 
-    # ────────────────────────────────────────────────────
-    # LEVEL 2 — Filtering Queries
-    # ────────────────────────────────────────────────────
 
-    # "absent yesterday"
     if re.search(r'\babsent\b', q) and re.search(r'\byesterday\b', q):
         start, end = get_date_range("yesterday")
         return {
@@ -120,7 +84,6 @@ def detect_intent(question: str):
             "explanation": "Returns students absent yesterday"
         }
 
-    # "absent today"
     if re.search(r'\babsent\b', q) and re.search(r'\btoday\b', q):
         start, end = get_date_range("today")
         return {
@@ -135,7 +98,6 @@ def detect_intent(question: str):
             "explanation": "Returns students absent today"
         }
 
-    # "assignments due this week"
     if re.search(r'\bassignment', q) and re.search(r'due|this\s+week', q) and not re.search(r'month', q):
         start, end = get_date_range("this_week")
         return {
@@ -149,11 +111,9 @@ def detect_intent(question: str):
             "explanation": "Returns assignments due this week"
         }
 
-    # "section A of class 6" / "class 6 section A"
     class_section = re.search(r'class\s*(\d+).*section\s*([a-b])|section\s*([a-b]).*class\s*(\d+)', q)
     if class_section:
         g = class_section.groups()
-        # groups: (class_num, section) or (None, None, section, class_num)
         class_num = g[0] or g[3]
         section   = (g[1] or g[2] or "").upper()
         return {
@@ -169,7 +129,6 @@ def detect_intent(question: str):
             "explanation": f"Returns students in Class {class_num} Section {section}"
         }
 
-    # "students in class 6" (no section specified)
     class_only = re.search(r'class\s*(\d+)', q)
     if class_only and re.search(r'\bstudent', q):
         class_num = class_only.group(1)
@@ -186,7 +145,6 @@ def detect_intent(question: str):
             "explanation": f"Returns all students in Class {class_num}"
         }
 
-    # "assignments this month" / "exams scheduled this month"
     if re.search(r'\bassignment|exam\b', q) and re.search(r'this\s+month|month', q):
         start, end = get_date_range("this_month")
         return {
@@ -200,11 +158,7 @@ def detect_intent(question: str):
             "explanation": "Returns assignments/exams due this month"
         }
 
-    # ────────────────────────────────────────────────────
-    # LEVEL 3 — Aggregation Queries
-    # ────────────────────────────────────────────────────
 
-    # "count absent today" / "how many absent today"
     if re.search(r'count|how\s+many', q) and re.search(r'\babsent\b', q) and re.search(r'\btoday\b', q):
         start, end = get_date_range("today")
         return {
@@ -216,7 +170,6 @@ def detect_intent(question: str):
             "explanation": "Counts absent students for today"
         }
 
-    # "assignments submitted per class" / "submissions per class"
     if re.search(r'\bassignment', q) and re.search(r'submit|per\s+class|each\s+class', q):
         return {
             "collection": "assignments",
@@ -236,7 +189,6 @@ def detect_intent(question: str):
             "explanation": "Counts assignment submissions grouped by class"
         }
 
-    # "class with highest absent" / "most absent class"
     if re.search(r'\bclass\b', q) and re.search(r'highest|most', q) and re.search(r'\babsent\b', q):
         start, end = get_date_range("today")
         return {
@@ -257,11 +209,7 @@ def detect_intent(question: str):
             "explanation": "Finds the class with most absences today"
         }
 
-    # ────────────────────────────────────────────────────
-    # LEVEL 4 — Multi-Collection Queries
-    # ────────────────────────────────────────────────────
 
-    # "students who have not submitted" / "students with no submission"
     if re.search(r'\bstudent', q) and re.search(r'not\s+submit|haven.t\s+submit|no\s+submit|without\s+submit', q):
         return {
             "collection": "students",
@@ -281,7 +229,6 @@ def detect_intent(question: str):
             "explanation": "Finds students with zero assignment submissions"
         }
 
-    # "teachers and classes they teach" / "teacher class list"
     if re.search(r'\bteacher', q) and re.search(r'class|teach', q):
         return {
             "collection": "teachers",
@@ -299,7 +246,6 @@ def detect_intent(question: str):
             "explanation": "Lists each teacher with classes they are assigned to"
         }
 
-    # "attendance percentage" / "attendance % of each student"  (NOT top N)
     if re.search(r'\battendance\b', q) and re.search(r'percent|%', q) and not re.search(r'top\s*\d', q):
         return {
             "collection": "attendance",
@@ -325,11 +271,7 @@ def detect_intent(question: str):
             "explanation": "Calculates attendance percentage for every student"
         }
 
-    # ────────────────────────────────────────────────────
-    # LEVEL 5 — Analytical Queries
-    # ────────────────────────────────────────────────────
 
-    # "top 5 students by attendance" / "top 10 attendance"
     top_match = re.search(r'top\s*(\d+)', q)
     if top_match and re.search(r'\battendance\b', q):
         limit = int(top_match.group(1))
@@ -357,5 +299,4 @@ def detect_intent(question: str):
             "explanation": f"Returns top {limit} students by attendance percentage"
         }
 
-    # No pattern matched — let Ollama handle it
     return None

@@ -1,19 +1,3 @@
-"""
-query_agent.py
---------------
-Orchestrates the full query pipeline.
-
-STRATEGY (most reliable → least reliable):
-  1. Intent Detector  → handles all 15 assignment queries, 100% reliable
-  2. Ollama AI        → fallback for unrecognized/custom queries
-  3. Manual Fallback  → if Ollama fails entirely
-
-WHY this order?
-  gemma3:1b is a 1B parameter model — great for speed on CPU,
-  but too small to reliably generate complex MongoDB JSON.
-  Intent detector bypasses AI for all known query patterns.
-"""
-
 from app.services.intent_detector import detect_intent
 from app.services.mongo_service import execute_query, get_schema_info
 from app.services.llm_service import generate_mongo_query, format_response
@@ -22,11 +6,6 @@ from datetime import datetime
 
 
 def process_pipeline(pipeline: list) -> list:
-    """
-    Converts {"$date": "ISO_STRING"} → Python datetime objects.
-    Only needed for AI-generated pipelines (intent detector uses
-    real datetime objects directly, so no conversion needed).
-    """
     def convert(obj):
         if isinstance(obj, dict):
             if "$date" in obj and len(obj) == 1:
@@ -46,18 +25,6 @@ def process_pipeline(pipeline: list) -> list:
 
 
 def run_query(user_question: str) -> dict:
-    """
-    Main entry point called by the API route.
-
-    Returns a dict with:
-      - question      : original question
-      - status        : "success" | "error"
-      - response      : friendly English answer
-      - results_count : number of DB records returned
-      - query_generated: pipeline info (for /api/query with show_query=true)
-      - raw_results   : first 10 raw records (for debugging)
-      - error         : error message if status == "error"
-    """
 
     intent = detect_intent(user_question)
 
@@ -89,11 +56,9 @@ def run_query(user_question: str) -> dict:
         explanation = query_data.get("explanation", "AI-generated query")
         source      = "ollama_ai"
 
-        # Convert any {"$date": "..."} strings to Python datetime
         pipeline = process_pipeline(pipeline)
     results = execute_query(collection, pipeline)
 
-    # execute_query returns a dict with "error" key on failure
     if isinstance(results, dict) and "error" in results:
         return {
             "question": user_question,
@@ -111,7 +76,7 @@ def run_query(user_question: str) -> dict:
         "status":   "success",
         "query_generated": {
             "collection":      collection,
-            "source":          source,        # "intent_detector" or "ollama_ai"
+            "source":          source,
             "explanation":     explanation,
             "pipeline_preview": str(pipeline)[:500],
         },

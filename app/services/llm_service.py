@@ -19,7 +19,6 @@ from datetime import datetime, timedelta
 
 load_dotenv()
 
-# Get model name from .env
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:1b")
 
 def get_current_datetime_context() -> str:
@@ -300,7 +299,6 @@ REMEMBER: Output ONLY the JSON object, nothing else.
         )
         raw_text = response["response"].strip()
 
-        # Strip markdown code fences if AI adds them anyway
         raw_text = re.sub(r'^```(?:json)?\s*', '', raw_text, flags=re.MULTILINE)
         raw_text = re.sub(r'\s*```$', '', raw_text, flags=re.MULTILINE)
         raw_text = raw_text.strip()
@@ -333,10 +331,8 @@ def format_response(user_question: str, query_results: list, query_explanation: 
 
     total_count    = len(query_results)
 
-    # Only send first 10 records to model — enough to format nicely + saves tokens
     results_sample = query_results[:10] if total_count > 10 else query_results
 
-    # Handle empty results immediately without calling the model
     if total_count == 0:
         return f"No records found for: '{user_question}'. The database returned 0 results."
 
@@ -360,7 +356,7 @@ Write a short, clear, friendly answer. Plain text only. No markdown."""
             ],
             options={
                 "temperature": 0.3,
-                "num_predict": 400,  # formatting needs fewer tokens
+                "num_predict": 400,
                 "num_ctx":     2048,
                 "num_thread":  8,
             }
@@ -368,11 +364,9 @@ Write a short, clear, friendly answer. Plain text only. No markdown."""
         return response["message"]["content"].strip()
 
     except Exception as e:
-        # Fallback: format manually without AI
         print(f"⚠️ Format response failed: {e}, using fallback")
         lines = [f"Found {total_count} records:"]
         for i, record in enumerate(query_results[:10], 1):
-            # Show name + one other field if available
             name = record.get("name", record.get("title", f"Record {i}"))
             lines.append(f"  {i}. {name}")
         if total_count > 10:
