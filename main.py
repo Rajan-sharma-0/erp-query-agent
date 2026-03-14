@@ -1,9 +1,4 @@
-"""
-main.py
--------
-This is the entry point of our entire application.
-Running this file starts the web server.
-"""
+
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
